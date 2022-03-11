@@ -1,7 +1,7 @@
 # Created by Freeknight
 # Date: 2021/12/13
-# Desc：
-# @category: Category Unknown
+# Desc：颜色选择组件
+# @category: UI组件
 #--------------------------------------------------------------------------------------------------
 tool
 extends HBoxContainer

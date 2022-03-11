@@ -1,6 +1,6 @@
 # Created by Freeknight
 # Date: 2021/12/13
-# Desc：
+# Desc：一个todo文件项的内存数据类（单文件）
 # @category: Category Unknown
 #--------------------------------------------------------------------------------------------------
 tool
@@ -10,8 +10,8 @@ extends Reference
 #--- enums ----------------------------------------------------------------------------------------
 #--- constants ------------------------------------------------------------------------------------
 #--- public variables - order: export > normal var > onready --------------------------------------
-var script_path : String
-var todos : Array
+var script_path : String # 该项中所在文件路径
+var todos : Array		# 该文件中的todo列表
 #--- private variables - order: export > normal var > onready -------------------------------------
 ### -----------------------------------------------------------------------------------------------
 

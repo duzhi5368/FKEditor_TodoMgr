@@ -1,7 +1,7 @@
 # Created by Freeknight
 # Date: 2021/12/13
-# Desc：
-# @category: Category Unknown
+# Desc：带删除按钮的输入栏组件
+# @category: UI组件
 #--------------------------------------------------------------------------------------------------
 tool
 extends HBoxContainer

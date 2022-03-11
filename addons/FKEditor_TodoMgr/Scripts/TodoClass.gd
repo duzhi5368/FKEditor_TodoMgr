@@ -1,6 +1,6 @@
 # Created by Freeknight
 # Date: 2021/12/13
-# Desc：
+# Desc：一个todo项对象
 # @category: Category Unknown
 #--------------------------------------------------------------------------------------------------
 tool
@@ -13,7 +13,7 @@ extends Reference
 var pattern : String
 var title : String
 var content : String
-var script_path : String
+var script_path : String #TODO 这个路径可以考虑去除
 var line_number : int
 #--- private variables - order: export > normal var > onready -------------------------------------
 ### -----------------------------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 # Created by Freeknight
 # Date: 2021/12/13
-# Desc：
-# @category: 主界面组件
+# Desc：插件主界面
+# @category: 界面
 #--------------------------------------------------------------------------------------------------
 tool
 extends Control
@@ -22,25 +22,24 @@ const DEFAULT_PATTERNS := [["\\bTODO\\b", Color("96f1ad")], ["\\bHACK\\b", Color
 const DEFAULT_SCRIPT_COLOUR := Color("ccced3")
 const DEFAULT_SCRIPT_NAME := false
 const DEFAULT_SORT := true
+const DEFAULT_CONFIG_PATH := "res://addons/FKEditor_TodoMgr/TodoMgr.cfg"
 #--- public variables - order: export > normal var > onready --------------------------------------
-var plugin : EditorPlugin
-var todo_items : Array
-var script_colour := Color("ccced3")
-var ignore_paths := []
-var full_path := false
-var sort_alphabetical := true
-var auto_refresh := true
+var plugin : EditorPlugin						# 插件对象主体
+var todo_items : Array						# 查找到的全部todo数据数组
+var patterns := DEFAULT_PATTERNS				# 当前正则匹配项
+var script_colour := DEFAULT_SCRIPT_COLOUR	# 文件项 在编辑器中显示颜色
+var ignore_paths := []						# 忽略处理的文件路径
+var full_path := false						# 是否显示文件全路径
+var sort_alphabetical := true					# 排序方式
+var auto_refresh := true 						# 是否自动扫描更新，若为false则发生文件更变则不会动态更新todo列表
 var builtin_enabled := false
-
-var patterns := [["\\bTODO\\b", Color("96f1ad")], ["\\bHACK\\b", Color("d5bc70")],\
-				 ["\\bFIXME\\b", Color("d57070")]]
 
 onready var tabs := $VBoxContainer/TabContainer as TabContainer
 onready var project := $VBoxContainer/TabContainer/Project as Project
 onready var current := $VBoxContainer/TabContainer/Current as Current
+onready var settings_panel := $VBoxContainer/TabContainer/Settings as Panel
 onready var project_tree := $VBoxContainer/TabContainer/Project/Tree as Tree
 onready var current_tree := $VBoxContainer/TabContainer/Current/Tree as Tree
-onready var settings_panel := $VBoxContainer/TabContainer/Settings as Panel
 onready var colours_container := $VBoxContainer/TabContainer/Settings/ScrollContainer/MarginContainer/VBoxContainer/HBoxContainer3/Colours as VBoxContainer
 onready var pattern_container := $VBoxContainer/TabContainer/Settings/ScrollContainer/MarginContainer/VBoxContainer/HBoxContainer4/Patterns as VBoxContainer
 onready var ignore_textbox := $VBoxContainer/TabContainer/Settings/ScrollContainer/MarginContainer/VBoxContainer/VBoxContainer/HBoxContainer2/Scripts/IgnorePaths/TextEdit as LineEdit
@@ -75,42 +74,47 @@ func get_active_script() -> TodoItem:
 		for todo_item in todo_items:
 			if todo_item.script_path == script_path:
 				return todo_item
-		
-		# nothing found
+		# 如果当前文件里没有任何todo项
 		var todo_item := TodoItem.new()
 		todo_item.script_path = script_path
 		return todo_item
 	else:
-		# not a script
+		# 非脚本文件
 		var todo_item := TodoItem.new()
-		todo_item.script_path = "res://Documentation"
+		todo_item.script_path = "null"
 		return todo_item
 # ------------------------------------------------------------------------------
-func go_to_script(script_path: String, line_number : int = 0) -> void:
+# 编辑器进行文件跳转
+# 注意：默认行数需要是 1。
+func go_to_script(script_path: String, line_number : int = 1) -> void:
 	if plugin.get_editor_interface().get_editor_settings().get_setting("text_editor/external/use_external_editor"):
+		# 外部编辑器只能 OS 调用
 		var exec_path = plugin.get_editor_interface().get_editor_settings().get_setting("text_editor/external/exec_path")
 		var args := get_exec_flags(exec_path, script_path, line_number)
 		OS.execute(exec_path, args)
 	else:
+		# 内部编辑器则直接跳转
 		var script := load(script_path)
 		plugin.get_editor_interface().edit_resource(script)
 		plugin.get_editor_interface().get_script_editor().goto_line(line_number - 1)
 # ------------------------------------------------------------------------------
+# 处理外部编辑器的跳转
 func get_exec_flags(editor_path : String, script_path : String, line_number : int) -> PoolStringArray:
 	var args : PoolStringArray
 	var script_global_path = ProjectSettings.globalize_path(script_path)
 	
-	if editor_path.ends_with("code.cmd") or editor_path.ends_with("code"): ## VS Code
+	# VS code
+	if editor_path.ends_with("code.cmd") or editor_path.ends_with("code"):
 		args.append(ProjectSettings.globalize_path("res://"))
 		args.append("--goto")
 		args.append(script_global_path +  ":" + String(line_number))
-	
-	elif editor_path.ends_with("rider64.exe") or editor_path.ends_with("rider"): ## Rider
+	# rider
+	elif editor_path.ends_with("rider64.exe") or editor_path.ends_with("rider"):
 		args.append("--line")
 		args.append(String(line_number))
 		args.append(script_global_path)
-		
-	else: ## Atom / Sublime
+	# Atom / Sublime 等等
+	else:
 		args.append(script_global_path + ":" + String(line_number))
 	
 	return args
@@ -129,7 +133,7 @@ func sort_backwards(a, b) -> bool:
 # ------------------------------------------------------------------------------
 func populate_settings() -> void:
 	for i in patterns.size():
-		## Create Colour Pickers
+		# 颜色选取区域
 		var colour_picker := ColourPicker.instance()
 		colour_picker.colour = patterns[i][1]
 		colour_picker.title = patterns[i][0]
@@ -137,16 +141,17 @@ func populate_settings() -> void:
 		colours_container.add_child(colour_picker)
 		colour_picker.colour_picker.connect("color_changed", self, "change_colour", [i])
 		
-		## Create Patterns
+		# 匹配关键字区域
 		var pattern_edit := Pattern.instance()
 		pattern_edit.text = patterns[i][0]
 		pattern_edit.index = i
 		pattern_container.add_child(pattern_edit)
 		pattern_edit.line_edit.connect("text_changed", self, "change_pattern", [i, colour_picker])
 		pattern_edit.remove_button.connect("pressed", self, "remove_pattern", [i, pattern_edit, colour_picker])
+	# 将 添加新关键字 按钮添加到父节点尾部
 	$VBoxContainer/TabContainer/Settings/ScrollContainer/MarginContainer/VBoxContainer/HBoxContainer4/Patterns/AddPatternButton.raise()
 	
-	# path filtering
+	# 更新忽略文件路径列表，以 空格 或 逗号 分割
 	var ignore_paths_field := ignore_textbox
 	if !ignore_paths_field.is_connected("text_changed", self, "_on_ignore_paths_changed"):
 		ignore_paths_field.connect("text_changed", self, "_on_ignore_paths_changed")
@@ -177,11 +182,13 @@ func create_config_file() -> void:
 	config.set_value("config", "auto_refresh", auto_refresh)
 	config.set_value("config", "builtin_enabled", builtin_enabled)
 	
-	var err = config.save("res://addons/FKEditor_TodoMgr/TodoMgr.cfg")
+	var err = config.save(DEFAULT_CONFIG_PATH)
+	if err:
+		print("保存配置文件失败：" + err)
 # ------------------------------------------------------------------------------
 func load_config() -> void:
 	var config := ConfigFile.new()
-	if config.load("res://addons/FKEditor_TodoMgr/TodoMgr.cfg") == OK:
+	if config.load(DEFAULT_CONFIG_PATH) == OK:
 		full_path = config.get_value("scripts", "full_path", DEFAULT_SCRIPT_NAME)
 		sort_alphabetical = config.get_value("scripts", "sort_alphabetical", DEFAULT_SORT)
 		script_colour = config.get_value("scripts", "script_colour", DEFAULT_SCRIPT_COLOUR)
@@ -210,7 +217,6 @@ func _on_SettingsButton_toggled(button_pressed: bool) -> void:
 	settings_panel.visible = button_pressed
 	if button_pressed == false:
 		create_config_file()
-#		plugin.find_tokens_from_path(plugin.script_cache)
 		if auto_refresh:
 			plugin.rescan_files()
 # ------------------------------------------------------------------------------
@@ -223,6 +229,7 @@ func _on_Tree_item_activated() -> void:
 			item = current_tree.get_selected()
 	if item.get_metadata(0) is Todo:
 		var todo : Todo = item.get_metadata(0)
+		# 这里延迟触发，并不适合直接进行调用
 		call_deferred("go_to_script", todo.script_path, todo.line_number)
 	else:
 		var todo_item = item.get_metadata(0)
@@ -238,6 +245,9 @@ func _on_TODOColourPickerButton_color_changed(color: Color) -> void:
 	patterns[0][1] = color
 # ------------------------------------------------------------------------------
 func _on_RescanButton_pressed() -> void:
+	if !plugin:
+		print("todo插件对象丢失，可能是因为不正确的终止项目导致。")
+		return
 	plugin.rescan_files()
 # ------------------------------------------------------------------------------
 func _on_DefaultButton_pressed() -> void:
@@ -258,7 +268,7 @@ func _on_RefreshCheckButton_toggled(button_pressed: bool) -> void:
 	auto_refresh = button_pressed
 # ------------------------------------------------------------------------------
 func _on_Timer_timeout() -> void:
-	plugin.refresh_lock = false
+	plugin.refresh_lock = false	#一秒定时器后解锁
 # ------------------------------------------------------------------------------
 func _on_ignore_paths_changed(new_text: String) -> void:
 	var text = ignore_textbox.text
@@ -268,7 +278,7 @@ func _on_ignore_paths_changed(new_text: String) -> void:
 		if elem == " " || elem == "": 
 			continue
 		ignore_paths.push_front(elem.lstrip(' ').rstrip(' '))
-	# validate so no empty string slips through (all paths ignored)
+	# 移除空项，以免忽略了全部路径
 	var i := 0
 	for path in ignore_paths:
 		if (path == "" || path == " "):
